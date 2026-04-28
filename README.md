@@ -8,7 +8,7 @@ This provider is built using the [Terraform Plugin Framework](https://github.com
 
 ## Features
 
-- **Workflow Management**: Create and manage notification workflows with support for push notifications (currently supports push notifications only)
+- **Workflow Management**: Create and manage notification workflows with support for push notifications and emails
 - **Integration Management**: Configure notification provider integrations (currently supports FCM only)
 - **Environment & API Key Discovery**: Query Novu environments and API keys
 - **Provider Validation**: Verify provider type existence (through the Novu Go SDK)
@@ -61,7 +61,6 @@ provider_installation {
 **Notes**: 
 - `eu_region` and `api_url` cannot be set simultaneously.
 - Required arguments means either the provider configuration or the environment variable must be set.
-
 
 ## Development
 
@@ -159,4 +158,3 @@ Contributions are welcome! Please ensure:
 - [Novu Go SDK](https://github.com/novuhq/novu-go)
 - [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework)
 - [Terraform Provider Scaffolding](https://github.com/hashicorp/terraform-provider-scaffolding)
-

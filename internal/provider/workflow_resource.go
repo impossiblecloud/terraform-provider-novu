@@ -65,11 +65,11 @@ type WorkflowResourceModel struct {
 	// PayloadExample  types.Dynamic `tfsdk:"payload_example"` // Skipped : not sure how to implement and if it's even useful
 }
 
-// only push step is supported for now.
+// only push and email steps are supported for now.
 type WorkflowStepResourceModel struct {
 	//Type     types.String                 `tfsdk:"type"` // -> ignored redundant : to delete ?
-	PushStep *WorkflowPushStepResourceModel `tfsdk:"push_step"`
-	//EmailStep *types.Object               `tfsdk:"email_step"`
+	PushStep  *WorkflowPushStepResourceModel  `tfsdk:"push_step"`
+	EmailStep *WorkflowEmailStepResourceModel `tfsdk:"email_step"`
 	//SmsStep *types.Object 				`tfsdk:"sms_step"`
 	//ChatStep *types.Object 				`tfsdk:"chat_step"`
 	//DelayStep *types.Object 				`tfsdk:"delay_step"`
@@ -112,6 +112,24 @@ type WorkflowStepIssuesIntegrationResourceModel struct {
 type WorkflowStepControlValuesResourceModel struct {
 	Subject types.String `tfsdk:"subject"`
 	Body    types.String `tfsdk:"body"`
+}
+
+type WorkflowEmailStepResourceModel struct {
+	Id                 types.String                             `tfsdk:"id"`
+	Name               types.String                             `tfsdk:"name"`
+	StepId             types.String                             `tfsdk:"step_id"`
+	Slug               types.String                             `tfsdk:"slug"`
+	Origin             types.String                             `tfsdk:"origin"`
+	WorkflowId         types.String                             `tfsdk:"workflow_id"`
+	WorkflowDatabaseId types.String                             `tfsdk:"workflow_database_id"`
+	Issues             types.Object                             `tfsdk:"issues"`
+	ControlValues      *WorkflowEmailControlValuesResourceModel `tfsdk:"control_values"`
+}
+
+type WorkflowEmailControlValuesResourceModel struct {
+	Subject    types.String `tfsdk:"subject"`
+	Body       types.String `tfsdk:"body"`
+	EditorType types.String `tfsdk:"editor_type"`
 }
 
 func NewWorkflowResource() resource.Resource {
@@ -241,7 +259,7 @@ func (r *WorkflowResource) Schema(ctx context.Context, req resource.SchemaReques
 			// },
 
 			"steps": schema.ListNestedAttribute{
-				MarkdownDescription: "Ordered list of steps of the workflow. NB : For now, only push steps are supported.",
+				MarkdownDescription: "Ordered list of steps of the workflow.",
 				Optional:            true,
 				Computed:            true, // For the default value to work
 				PlanModifiers: []planmodifier.List{
@@ -249,24 +267,24 @@ func (r *WorkflowResource) Schema(ctx context.Context, req resource.SchemaReques
 					listplanmodifier.UseStateForUnknown(),
 				},
 				NestedObject: schema.NestedAttributeObject{
-					// The validator that only one property is set is inside push_step attribute
+					// The validator that only one property is set is inside push_step attribute.
+					// The validator will run even if push_step is not set, so we don't have to copy it on each attribute.
 					Attributes: map[string]schema.Attribute{
 						"push_step": schema.SingleNestedAttribute{
 							MarkdownDescription: "Push step",
-							Optional:            true, // optional when multiple step kinds are implemented.
+							Optional:            true,
 							PlanModifiers: []planmodifier.Object{
 								objectplanmodifier.UseStateForUnknown(),
 							},
 
-							// Validator : Validate that exactly one type of step is present in each step of the list
-							// If only one type is implemented, ensure it is set
+							// Validator : Validate that exactly one type of step is present in each step of the list.
 							// NB : Because terraform is very logical, we have to set the object validator on one of its attributes and not the nested object...
 							// The validator will run even if push_step is not set, so we don't have to copy it on each attribute.
 							Validators: []validator.Object{
 								objectvalidator.ExactlyOneOf(
 									path.MatchRelative().AtParent().AtName("push_step"),
+									path.MatchRelative().AtParent().AtName("email_step"),
 									// future proof for future step kinds, uncomment associated path when attribute is implemented
-									// path.MatchRelative().AtParent().AtName("email_step"),
 									// path.MatchRelative().AtParent().AtName("sms_step"),
 									// path.MatchRelative().AtParent().AtName("chat_step"),
 									// path.MatchRelative().AtParent().AtName("delay_step"),
@@ -406,6 +424,145 @@ func (r *WorkflowResource) Schema(ctx context.Context, req resource.SchemaReques
 								},
 							},
 						},
+						"email_step": schema.SingleNestedAttribute{
+							MarkdownDescription: "Email step",
+							Optional:            true,
+							PlanModifiers: []planmodifier.Object{
+								objectplanmodifier.UseStateForUnknown(),
+							},
+							Attributes: map[string]schema.Attribute{
+								"id": schema.StringAttribute{
+									MarkdownDescription: "ID of the email step",
+									Computed:            true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+										customvalidators.StringUnkownOnSiblingNotKnownVal("step_id"),
+									},
+								},
+								"name": schema.StringAttribute{
+									MarkdownDescription: "Name of the email step",
+									Required:            true,
+								},
+								"control_values": schema.SingleNestedAttribute{
+									MarkdownDescription: "Control values of the email step",
+									Optional:            true,
+									Attributes: map[string]schema.Attribute{
+										"subject": schema.StringAttribute{
+											MarkdownDescription: "Subject of the email.",
+											Required:            true,
+										},
+										"body": schema.StringAttribute{
+											MarkdownDescription: "Body content of the email (HTML string or Maily JSON).",
+											Optional:            true,
+										},
+										"editor_type": schema.StringAttribute{
+											MarkdownDescription: "Type of editor used for the body. Allowed values: `block`, `html`. Defaults to `block`.",
+											Optional:            true,
+											Computed:            true,
+											Default:             stringdefault.StaticString("block"),
+										},
+									},
+								},
+								"step_id": schema.StringAttribute{
+									MarkdownDescription: "Step ID of the email step",
+									Computed:            true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+										customvalidators.StringUnkownOnSiblingNotKnownVal("step_id"),
+									},
+								},
+								"slug": schema.StringAttribute{
+									MarkdownDescription: "Slug of the email step",
+									Computed:            true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+										customvalidators.StringUnkownOnSiblingNotKnownVal("step_id"),
+										customvalidators.StringUnknownIfSiblingChanged("name"),
+									},
+								},
+								"origin": schema.StringAttribute{
+									MarkdownDescription: "Origin of the email step",
+									Computed:            true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+										customvalidators.StringUnkownOnSiblingNotKnownVal("step_id"),
+									},
+								},
+								"workflow_id": schema.StringAttribute{
+									MarkdownDescription: "Workflow ID of the email step",
+									Computed:            true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+										customvalidators.StringUnkownOnSiblingNotKnownVal("step_id"),
+									},
+								},
+								"workflow_database_id": schema.StringAttribute{
+									MarkdownDescription: "Workflow database ID of the email step",
+									Computed:            true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+										customvalidators.StringUnkownOnSiblingNotKnownVal("step_id"),
+									},
+								},
+								"issues": schema.SingleNestedAttribute{
+									MarkdownDescription: "Issues associated with the email step",
+									Computed:            true,
+									PlanModifiers: []planmodifier.Object{
+										customvalidators.ObjectUnkownOnSiblingNotKnownVal("step_id"),
+									},
+									Attributes: map[string]schema.Attribute{
+										"controls": schema.ListNestedAttribute{
+											MarkdownDescription: "Controls-related issues",
+											Computed:            true,
+											NestedObject: schema.NestedAttributeObject{
+												Attributes: map[string]schema.Attribute{
+													"key": schema.StringAttribute{
+														MarkdownDescription: "Key of the control issue",
+														Computed:            true,
+													},
+													"issue_type": schema.StringAttribute{
+														MarkdownDescription: "Type of step content issue",
+														Computed:            true,
+													},
+													"variable_name": schema.StringAttribute{
+														MarkdownDescription: "Name of the variable that caused the issue",
+														Computed:            true,
+													},
+													"message": schema.StringAttribute{
+														MarkdownDescription: "Detailed message describing the issue",
+														Computed:            true,
+													},
+												},
+											},
+										},
+										"integration": schema.ListNestedAttribute{
+											MarkdownDescription: "Integration-related issues",
+											Computed:            true,
+											NestedObject: schema.NestedAttributeObject{
+												Attributes: map[string]schema.Attribute{
+													"key": schema.StringAttribute{
+														MarkdownDescription: "Key of the integration issue",
+														Computed:            true,
+													},
+													"issue_type": schema.StringAttribute{
+														MarkdownDescription: "Type of integration issue",
+														Computed:            true,
+													},
+													"variable_name": schema.StringAttribute{
+														MarkdownDescription: "Name of the variable that caused the issue",
+														Computed:            true,
+													},
+													"message": schema.StringAttribute{
+														MarkdownDescription: "Detailed message describing the issue",
+														Computed:            true,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -470,12 +627,13 @@ func (r *WorkflowResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	// Read the workflow response into the data model -> isn't that a mistake ?
-	// TODO Fix this crap
+	configSteps := data.Steps
+
 	resp.Diagnostics.Append(data.setFromResponseDTO(ctx, workflowRes.WorkflowResponseDto)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	data.Steps = restoreEmailControlValueBodies(configSteps, data.Steps)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -512,10 +670,13 @@ func (r *WorkflowResource) Read(ctx context.Context, req resource.ReadRequest, r
 			return
 		}
 	}
+	priorSteps := data.Steps
+
 	resp.Diagnostics.Append(data.setFromResponseDTO(ctx, workflowRes.WorkflowResponseDto)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	data.Steps = restoreEmailControlValueBodies(priorSteps, data.Steps)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -581,6 +742,7 @@ func (r *WorkflowResource) Update(ctx context.Context, req resource.UpdateReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	state.Steps = restoreEmailControlValueBodies(plan.Steps, state.Steps)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -607,6 +769,31 @@ func (r *WorkflowResource) Delete(ctx context.Context, req resource.DeleteReques
 			return
 		}
 	}
+}
+
+// restoreEmailControlValueBodies preserves email step control_values.body from srcSteps
+// into destSteps when the Novu API response omits or clears the body field.
+func restoreEmailControlValueBodies(srcSteps, destSteps []WorkflowStepResourceModel) []WorkflowStepResourceModel {
+	for i := range destSteps {
+		if i >= len(srcSteps) {
+			break
+		}
+		dest := &destSteps[i]
+		src := srcSteps[i]
+		if dest.EmailStep == nil || dest.EmailStep.ControlValues == nil {
+			continue
+		}
+		if src.EmailStep == nil || src.EmailStep.ControlValues == nil {
+			continue
+		}
+		destBody := dest.EmailStep.ControlValues.Body
+		srcBody := src.EmailStep.ControlValues.Body
+		if (destBody.IsNull() || destBody.ValueString() == "") &&
+			!srcBody.IsNull() && !srcBody.IsUnknown() && srcBody.ValueString() != "" {
+			dest.EmailStep.ControlValues.Body = srcBody
+		}
+	}
+	return destSteps
 }
 
 func (r *WorkflowResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -684,9 +871,37 @@ func (w *WorkflowStepResourceModel) convertToNovuStep() (*components.Steps, erro
 
 		steps := components.CreateStepsPush(novuStepPush)
 		return &steps, nil
-	default:
-		return nil, fmt.Errorf("unsupported step type: %s. For now, only push steps are supported", stepType)
 
+	case components.StepsTypeEmail:
+		if w.EmailStep == nil {
+			return nil, fmt.Errorf("email step is nil")
+		}
+		emailStep := w.EmailStep
+
+		novuStepEmail := components.EmailStepUpsertDto{
+			ID:   helpers.FromTfString(emailStep.Id),
+			Name: emailStep.Name.ValueString(),
+			Type: components.StepTypeEnumEmail,
+		}
+		if emailStep.ControlValues != nil {
+			cv := emailStep.ControlValues
+			emailControlDto := components.EmailControlDto{
+				Subject: cv.Subject.ValueString(),
+				Body:    helpers.FromTfString(cv.Body),
+			}
+			if !cv.EditorType.IsNull() && !cv.EditorType.IsUnknown() && cv.EditorType.ValueString() != "" {
+				editorType := components.EmailControlDtoEditorType(cv.EditorType.ValueString())
+				emailControlDto.EditorType = &editorType
+			}
+			controlValues := components.CreateEmailStepUpsertDtoControlValuesEmailControlDto(emailControlDto)
+			novuStepEmail.ControlValues = &controlValues
+		}
+
+		steps := components.CreateStepsEmail(novuStepEmail)
+		return &steps, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported step type: %s", stepType)
 	}
 }
 
@@ -697,7 +912,10 @@ func (w *WorkflowStepResourceModel) getType() (components.StepsType, error) {
 	if w.PushStep != nil {
 		return components.StepsTypePush, nil
 	}
-	return "", fmt.Errorf("no step type found or unsupported step type. For now, only push steps are supported")
+	if w.EmailStep != nil {
+		return components.StepsTypeEmail, nil
+	}
+	return "", fmt.Errorf("no step type found or unsupported step type")
 }
 
 func (w *WorkflowStepResourceModel) sameAs(other *WorkflowStepResourceModel, skipComputed bool) bool {
@@ -715,6 +933,8 @@ func (w *WorkflowStepResourceModel) sameAs(other *WorkflowStepResourceModel, ski
 	switch planStepType {
 	case components.StepsTypePush:
 		return w.PushStep.sameAs(other.PushStep, skipComputed)
+	case components.StepsTypeEmail:
+		return w.EmailStep.sameAs(other.EmailStep, skipComputed)
 	default:
 		return false
 	}
@@ -750,6 +970,36 @@ func (cv *WorkflowStepControlValuesResourceModel) sameAs(other *WorkflowStepCont
 	return cv.Subject.Equal(other.Subject) && cv.Body.Equal(other.Body)
 }
 
+func (w *WorkflowEmailStepResourceModel) sameAs(other *WorkflowEmailStepResourceModel, skipComputed bool) bool {
+	if w == nil || other == nil {
+		return false
+	}
+
+	same := true
+	if !skipComputed {
+		same = same &&
+			w.Id.Equal(other.Id) &&
+			w.StepId.Equal(other.StepId) &&
+			w.Slug.Equal(other.Slug) &&
+			w.Origin.Equal(other.Origin) &&
+			w.WorkflowId.Equal(other.WorkflowId) &&
+			w.WorkflowDatabaseId.Equal(other.WorkflowDatabaseId)
+	}
+
+	same = same &&
+		w.Name.Equal(other.Name) &&
+		w.ControlValues.sameAs(other.ControlValues, skipComputed)
+
+	return same
+}
+
+func (cv *WorkflowEmailControlValuesResourceModel) sameAs(other *WorkflowEmailControlValuesResourceModel, _ bool) bool {
+	if cv == nil || other == nil {
+		return false
+	}
+	return cv.Subject.Equal(other.Subject) && cv.Body.Equal(other.Body) && cv.EditorType.Equal(other.EditorType)
+}
+
 func buildStepsList(ctx context.Context, workflow *components.WorkflowResponseDto) ([]WorkflowStepResourceModel, error) {
 	if workflow == nil {
 		return nil, fmt.Errorf("workflow is nil")
@@ -777,8 +1027,14 @@ func readStepsSlice(ctx context.Context, workflow *components.WorkflowResponseDt
 				return nil, err
 			}
 			out = append(out, WorkflowStepResourceModel{PushStep: pushStep})
+		case components.WorkflowResponseDtoStepsTypeEmail:
+			emailStep, err := readEmailStepAsModel(ctx, &step)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, WorkflowStepResourceModel{EmailStep: emailStep})
 		default:
-			return nil, fmt.Errorf("only push steps are supported for now in the workflow resource, received step type: %s", step.Type)
+			return nil, fmt.Errorf("unsupported step type in the workflow resource: %s", step.Type)
 		}
 	}
 	return out, nil
@@ -808,6 +1064,53 @@ func readPushStepAsModel(ctx context.Context, step *components.WorkflowResponseD
 		}
 	}
 
+	issuesObject, err := buildStepIssuesObject(ctx, pushStep.Issues)
+	if err != nil {
+		return nil, err
+	}
+	pushStepModel.Issues = issuesObject
+
+	return &pushStepModel, nil
+}
+
+func readEmailStepAsModel(ctx context.Context, step *components.WorkflowResponseDtoSteps) (*WorkflowEmailStepResourceModel, error) {
+	if step.EmailStepResponseDto == nil {
+		return nil, fmt.Errorf("email step is empty")
+	}
+
+	emailStep := step.EmailStepResponseDto
+	emailStepModel := WorkflowEmailStepResourceModel{
+		Id:                 types.StringValue(emailStep.ID),
+		Name:               types.StringValue(emailStep.Name),
+		StepId:             types.StringValue(emailStep.StepID),
+		Slug:               types.StringValue(emailStep.Slug),
+		Origin:             types.StringValue(string(emailStep.Origin)),
+		WorkflowId:         types.StringValue(emailStep.WorkflowID),
+		WorkflowDatabaseId: types.StringValue(emailStep.WorkflowDatabaseID),
+	}
+
+	if cv := emailStep.ControlValues; cv != nil {
+		emailStepModel.ControlValues = &WorkflowEmailControlValuesResourceModel{
+			Subject: types.StringValue(cv.Subject),
+			Body:    helpers.TfString(cv.Body),
+		}
+		if cv.EditorType != nil {
+			emailStepModel.ControlValues.EditorType = types.StringValue(string(*cv.EditorType))
+		} else {
+			emailStepModel.ControlValues.EditorType = types.StringValue("block")
+		}
+	}
+
+	issuesObject, err := buildStepIssuesObject(ctx, emailStep.Issues)
+	if err != nil {
+		return nil, err
+	}
+	emailStepModel.Issues = issuesObject
+
+	return &emailStepModel, nil
+}
+
+func buildStepIssuesObject(ctx context.Context, issues *components.StepIssuesDto) (types.Object, error) {
 	issuesType := types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"controls": types.ListType{ElemType: types.ObjectType{AttrTypes: map[string]attr.Type{
@@ -825,51 +1128,42 @@ func readPushStepAsModel(ctx context.Context, step *components.WorkflowResponseD
 		},
 	}
 
-	if issues := pushStep.Issues; issues == nil {
-		pushStepModel.Issues = types.ObjectNull(issuesType.AttrTypes)
-	} else {
-		var issuesModel WorkflowStepIssuesResourceModel
-		var controlsModel = make([]WorkflowStepIssuesControlsResourceModel, 0)
-		if controlsMap := issues.Controls; len(controlsMap) > 0 {
-			for key, controls := range controlsMap {
-				for _, control := range controls {
-					controlsModel = append(controlsModel, WorkflowStepIssuesControlsResourceModel{
-						Key:          types.StringValue(key),
-						IssueType:    types.StringValue(string(control.IssueType)),
-						Message:      types.StringValue(control.Message),
-						VariableName: helpers.TfString(control.VariableName),
-					})
-				}
-			}
-		}
-		var integrationModel = make([]WorkflowStepIssuesIntegrationResourceModel, 0)
-		if integrationMap := issues.Integration; len(integrationMap) > 0 {
-			for key, integrations := range integrationMap {
-				for _, integration := range integrations {
-					integrationModel = append(integrationModel, WorkflowStepIssuesIntegrationResourceModel{
-						Key:          types.StringValue(key),
-						IssueType:    types.StringValue(string(integration.IssueType)),
-						Message:      types.StringValue(integration.Message),
-						VariableName: helpers.TfString(integration.VariableName),
-					})
-				}
-			}
-		}
-
-		issuesModel = WorkflowStepIssuesResourceModel{
-			Controls:    controlsModel,
-			Integration: integrationModel,
-		}
-
-		// Derive the ObjectType from plan (or fall back to state)
-
-		issuesObject, diags := types.ObjectValueFrom(ctx, issuesType.AttrTypes, issuesModel)
-		if diags.HasError() {
-			return nil, fmt.Errorf("unable to convert issues to object: %s", diags.Errors())
-		}
-		pushStepModel.Issues = issuesObject
+	if issues == nil {
+		return types.ObjectNull(issuesType.AttrTypes), nil
 	}
-	return &pushStepModel, nil
+
+	controlsModel := make([]WorkflowStepIssuesControlsResourceModel, 0)
+	for key, controls := range issues.Controls {
+		for _, control := range controls {
+			controlsModel = append(controlsModel, WorkflowStepIssuesControlsResourceModel{
+				Key:          types.StringValue(key),
+				IssueType:    types.StringValue(string(control.IssueType)),
+				Message:      types.StringValue(control.Message),
+				VariableName: helpers.TfString(control.VariableName),
+			})
+		}
+	}
+	integrationModel := make([]WorkflowStepIssuesIntegrationResourceModel, 0)
+	for key, integrations := range issues.Integration {
+		for _, integration := range integrations {
+			integrationModel = append(integrationModel, WorkflowStepIssuesIntegrationResourceModel{
+				Key:          types.StringValue(key),
+				IssueType:    types.StringValue(string(integration.IssueType)),
+				Message:      types.StringValue(integration.Message),
+				VariableName: helpers.TfString(integration.VariableName),
+			})
+		}
+	}
+
+	issuesModel := WorkflowStepIssuesResourceModel{
+		Controls:    controlsModel,
+		Integration: integrationModel,
+	}
+	issuesObject, diags := types.ObjectValueFrom(ctx, issuesType.AttrTypes, issuesModel)
+	if diags.HasError() {
+		return types.ObjectNull(issuesType.AttrTypes), fmt.Errorf("unable to convert issues to object: %s", diags.Errors())
+	}
+	return issuesObject, nil
 }
 
 func createWorklowRequest(ctx context.Context, data *WorkflowResourceModel) (*components.CreateWorkflowDto, diag.Diagnostics) {

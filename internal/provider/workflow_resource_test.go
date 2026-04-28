@@ -233,3 +233,262 @@ resource "novu_workflow" "test" {
 }
 `, workflow_id, name)
 }
+
+func TestWorkflowResourceWithEmailStep(t *testing.T) {
+	randInt := acctest.RandIntRange(0, 1000)
+	rname := fmt.Sprintf("tf-acc-%d", randInt)
+	workflow_id := fmt.Sprintf("tf-acc-%d", randInt)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				// first test: email step with subject, body, and default editor_type
+				Config: testAccWorkflowWithEmailStepConfig(workflow_id, rname),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"), knownvalue.ListSizeExact(1)),
+						plancheck.ExpectUnknownValue("novu_workflow.test", tfjsonpath.New("steps").AtSliceIndex(0).AtMapKey("email_step").AtMapKey("step_id")),
+						plancheck.ExpectUnknownValue("novu_workflow.test", tfjsonpath.New("steps").AtSliceIndex(0).AtMapKey("email_step").AtMapKey("slug")),
+						plancheck.ExpectUnknownValue("novu_workflow.test", tfjsonpath.New("steps").AtSliceIndex(0).AtMapKey("email_step").AtMapKey("origin")),
+						plancheck.ExpectUnknownValue("novu_workflow.test", tfjsonpath.New("steps").AtSliceIndex(0).AtMapKey("email_step").AtMapKey("issues")),
+						plancheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"),
+							knownvalue.ListPartial(map[int]knownvalue.Check{
+								0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"email_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+										"name": knownvalue.StringExact("test email step"),
+										"control_values": knownvalue.ObjectExact(map[string]knownvalue.Check{
+											"subject":     knownvalue.StringExact("test subject"),
+											"body":        knownvalue.StringExact("<p>Hello World</p>"),
+											"editor_type": knownvalue.StringExact("block"),
+										}),
+									}),
+								}),
+							}),
+						),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"),
+						knownvalue.ListPartial(map[int]knownvalue.Check{
+							0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+								"email_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"name": knownvalue.StringExact("test email step"),
+									"control_values": knownvalue.ObjectExact(map[string]knownvalue.Check{
+										"subject":     knownvalue.StringExact("test subject"),
+										"body":        knownvalue.StringExact("<p>Hello World</p>"),
+										"editor_type": knownvalue.StringExact("block"),
+									}),
+								}),
+							}),
+						}),
+					),
+					// no email integration => integration error
+					statecheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps").AtSliceIndex(0).AtMapKey("email_step").AtMapKey("issues"),
+						knownvalue.ObjectPartial(map[string]knownvalue.Check{
+							"controls": knownvalue.ListSizeExact(0),
+						}),
+					),
+				},
+			},
+			{
+				// second test: same config, expect no changes
+				Config: testAccWorkflowWithEmailStepConfig(workflow_id, rname),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func TestWorkflowResourceWithEmailStepHtmlEditor(t *testing.T) {
+	randInt := acctest.RandIntRange(0, 1000)
+	rname := fmt.Sprintf("tf-acc-%d", randInt)
+	workflow_id := fmt.Sprintf("tf-acc-%d", randInt)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				// email step with html editor_type
+				Config: testAccWorkflowWithEmailStepHtmlEditorConfig(workflow_id, rname),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"),
+							knownvalue.ListPartial(map[int]knownvalue.Check{
+								0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"email_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+										"control_values": knownvalue.ObjectExact(map[string]knownvalue.Check{
+											"subject":     knownvalue.StringExact("html email subject"),
+											"body":        knownvalue.StringExact("<h1>Hello</h1><p>World</p>"),
+											"editor_type": knownvalue.StringExact("html"),
+										}),
+									}),
+								}),
+							}),
+						),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"),
+						knownvalue.ListPartial(map[int]knownvalue.Check{
+							0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+								"email_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"control_values": knownvalue.ObjectExact(map[string]knownvalue.Check{
+										"subject":     knownvalue.StringExact("html email subject"),
+										"body":        knownvalue.StringExact("<h1>Hello</h1><p>World</p>"),
+										"editor_type": knownvalue.StringExact("html"),
+									}),
+								}),
+							}),
+						}),
+					),
+				},
+			},
+			{
+				// same config, expect no changes
+				Config: testAccWorkflowWithEmailStepHtmlEditorConfig(workflow_id, rname),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func TestWorkflowResourceMixedSteps(t *testing.T) {
+	randInt := acctest.RandIntRange(0, 1000)
+	rname := fmt.Sprintf("tf-acc-%d", randInt)
+	workflow_id := fmt.Sprintf("tf-acc-%d", randInt)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				// workflow with both a push step and an email step
+				Config: testAccWorkflowWithMixedStepsConfig(workflow_id, rname),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"), knownvalue.ListSizeExact(2)),
+						plancheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"),
+							knownvalue.ListPartial(map[int]knownvalue.Check{
+								0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"push_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+										"name": knownvalue.StringExact("test push step"),
+									}),
+								}),
+								1: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"email_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+										"name": knownvalue.StringExact("test email step"),
+									}),
+								}),
+							}),
+						),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"), knownvalue.ListSizeExact(2)),
+					statecheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"),
+						knownvalue.ListPartial(map[int]knownvalue.Check{
+							0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+								"push_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"name": knownvalue.StringExact("test push step"),
+								}),
+							}),
+							1: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+								"email_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"name": knownvalue.StringExact("test email step"),
+								}),
+							}),
+						}),
+					),
+				},
+			},
+			{
+				// same config, expect no changes
+				Config: testAccWorkflowWithMixedStepsConfig(workflow_id, rname),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func testAccWorkflowWithEmailStepConfig(workflow_id string, name string) string {
+	return fmt.Sprintf(`
+resource "novu_workflow" "test" {
+  workflow_id = "%s"
+  name = "%s"
+  steps = [
+    {
+      email_step = {
+        name = "test email step"
+        control_values = {
+          subject = "test subject"
+          body    = "<p>Hello World</p>"
+        }
+      }
+    }
+  ]
+}
+`, workflow_id, name)
+}
+
+func testAccWorkflowWithEmailStepHtmlEditorConfig(workflow_id string, name string) string {
+	return fmt.Sprintf(`
+resource "novu_workflow" "test" {
+  workflow_id = "%s"
+  name = "%s"
+  steps = [
+    {
+      email_step = {
+        name = "test email step html"
+        control_values = {
+          subject     = "html email subject"
+          body        = "<h1>Hello</h1><p>World</p>"
+          editor_type = "html"
+        }
+      }
+    }
+  ]
+}
+`, workflow_id, name)
+}
+
+func testAccWorkflowWithMixedStepsConfig(workflow_id string, name string) string {
+	return fmt.Sprintf(`
+resource "novu_workflow" "test" {
+  workflow_id = "%s"
+  name = "%s"
+  steps = [
+    {
+      push_step = {
+        name = "test push step"
+        control_values = {
+          subject = "push subject"
+          body    = "push body"
+        }
+      }
+    },
+    {
+      email_step = {
+        name = "test email step"
+        control_values = {
+          subject = "email subject"
+          body    = "<p>Email body</p>"
+        }
+      }
+    }
+  ]
+}
+`, workflow_id, name)
+}

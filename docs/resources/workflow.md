@@ -68,7 +68,7 @@ locals {
 
 - `active` (Boolean) Whether the workflow is active
 - `description` (String) description of the workflow
-- `steps` (Attributes List) Ordered list of steps of the workflow. NB : For now, only push steps are supported. (see [below for nested schema](#nestedatt--steps))
+- `steps` (Attributes List) Ordered list of steps of the workflow. (see [below for nested schema](#nestedatt--steps))
 - `tags` (List of String) Tags associated with the workflow
 - `validate_payload` (Boolean) Whether the payload schema validation is enabled
 
@@ -87,7 +87,74 @@ locals {
 
 Optional:
 
+- `email_step` (Attributes) Email step (see [below for nested schema](#nestedatt--steps--email_step))
 - `push_step` (Attributes) Push step (see [below for nested schema](#nestedatt--steps--push_step))
+
+<a id="nestedatt--steps--email_step"></a>
+### Nested Schema for `steps.email_step`
+
+Required:
+
+- `name` (String) Name of the email step
+
+Optional:
+
+- `control_values` (Attributes) Control values of the email step (see [below for nested schema](#nestedatt--steps--email_step--control_values))
+
+Read-Only:
+
+- `id` (String) ID of the email step
+- `issues` (Attributes) Issues associated with the email step (see [below for nested schema](#nestedatt--steps--email_step--issues))
+- `origin` (String) Origin of the email step
+- `slug` (String) Slug of the email step
+- `step_id` (String) Step ID of the email step
+- `workflow_database_id` (String) Workflow database ID of the email step
+- `workflow_id` (String) Workflow ID of the email step
+
+<a id="nestedatt--steps--email_step--control_values"></a>
+### Nested Schema for `steps.email_step.control_values`
+
+Required:
+
+- `subject` (String) Subject of the email.
+
+Optional:
+
+- `body` (String) Body content of the email (HTML string or Maily JSON).
+- `editor_type` (String) Type of editor used for the body. Allowed values: `block`, `html`. Defaults to `block`.
+
+
+<a id="nestedatt--steps--email_step--issues"></a>
+### Nested Schema for `steps.email_step.issues`
+
+Read-Only:
+
+- `controls` (Attributes List) Controls-related issues (see [below for nested schema](#nestedatt--steps--email_step--issues--controls))
+- `integration` (Attributes List) Integration-related issues (see [below for nested schema](#nestedatt--steps--email_step--issues--integration))
+
+<a id="nestedatt--steps--email_step--issues--controls"></a>
+### Nested Schema for `steps.email_step.issues.controls`
+
+Read-Only:
+
+- `issue_type` (String) Type of step content issue
+- `key` (String) Key of the control issue
+- `message` (String) Detailed message describing the issue
+- `variable_name` (String) Name of the variable that caused the issue
+
+
+<a id="nestedatt--steps--email_step--issues--integration"></a>
+### Nested Schema for `steps.email_step.issues.integration`
+
+Read-Only:
+
+- `issue_type` (String) Type of integration issue
+- `key` (String) Key of the integration issue
+- `message` (String) Detailed message describing the issue
+- `variable_name` (String) Name of the variable that caused the issue
+
+
+
 
 <a id="nestedatt--steps--push_step"></a>
 ### Nested Schema for `steps.push_step`
