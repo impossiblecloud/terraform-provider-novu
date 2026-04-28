@@ -17,7 +17,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -52,7 +52,7 @@ jobs:
           NEW_TAG: ${{ steps.tag_version.outputs.new_tag }}
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
           cache: true
