@@ -261,6 +261,7 @@ func TestWorkflowResourceWithEmailStep(t *testing.T) {
 											"subject":     knownvalue.StringExact("test subject"),
 											"body":        knownvalue.StringExact("<p>Hello World</p>"),
 											"editor_type": knownvalue.StringExact("block"),
+											"layout_id":   knownvalue.Null(),
 										}),
 									}),
 								}),
@@ -279,6 +280,7 @@ func TestWorkflowResourceWithEmailStep(t *testing.T) {
 										"subject":     knownvalue.StringExact("test subject"),
 										"body":        knownvalue.StringExact("<p>Hello World</p>"),
 										"editor_type": knownvalue.StringExact("block"),
+										"layout_id":   knownvalue.Null(),
 									}),
 								}),
 							}),
@@ -326,6 +328,7 @@ func TestWorkflowResourceWithEmailStepHtmlEditor(t *testing.T) {
 											"subject":     knownvalue.StringExact("html email subject"),
 											"body":        knownvalue.StringExact("<h1>Hello</h1><p>World</p>"),
 											"editor_type": knownvalue.StringExact("html"),
+											"layout_id":   knownvalue.Null(),
 										}),
 									}),
 								}),
@@ -342,6 +345,7 @@ func TestWorkflowResourceWithEmailStepHtmlEditor(t *testing.T) {
 										"subject":     knownvalue.StringExact("html email subject"),
 										"body":        knownvalue.StringExact("<h1>Hello</h1><p>World</p>"),
 										"editor_type": knownvalue.StringExact("html"),
+										"layout_id":   knownvalue.Null(),
 									}),
 								}),
 							}),
@@ -464,6 +468,103 @@ resource "novu_workflow" "test" {
 `, workflow_id, name)
 }
 
+func TestWorkflowResourceWithEmailStepLayoutID(t *testing.T) {
+	randInt := acctest.RandIntRange(0, 1000)
+	rname := fmt.Sprintf("tf-acc-%d", randInt)
+	workflow_id := fmt.Sprintf("tf-acc-%d", randInt)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				// email step with an explicit layout_id
+				Config: testAccWorkflowWithEmailStepLayoutIDConfig(workflow_id, rname, "test-layout-id"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"),
+							knownvalue.ListPartial(map[int]knownvalue.Check{
+								0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"email_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+										"control_values": knownvalue.ObjectExact(map[string]knownvalue.Check{
+											"subject":     knownvalue.StringExact("test subject"),
+											"body":        knownvalue.StringExact("<p>Hello World</p>"),
+											"editor_type": knownvalue.StringExact("block"),
+											"layout_id":   knownvalue.StringExact("test-layout-id"),
+										}),
+									}),
+								}),
+							}),
+						),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"),
+						knownvalue.ListPartial(map[int]knownvalue.Check{
+							0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+								"email_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"control_values": knownvalue.ObjectExact(map[string]knownvalue.Check{
+										"subject":     knownvalue.StringExact("test subject"),
+										"body":        knownvalue.StringExact("<p>Hello World</p>"),
+										"editor_type": knownvalue.StringExact("block"),
+										"layout_id":   knownvalue.StringExact("test-layout-id"),
+									}),
+								}),
+							}),
+						}),
+					),
+				},
+			},
+			{
+				// update layout_id to a different value — expect a plan with changes
+				Config: testAccWorkflowWithEmailStepLayoutIDConfig(workflow_id, rname, "updated-layout-id"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"),
+							knownvalue.ListPartial(map[int]knownvalue.Check{
+								0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"email_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+										"control_values": knownvalue.ObjectExact(map[string]knownvalue.Check{
+											"subject":     knownvalue.StringExact("test subject"),
+											"body":        knownvalue.StringExact("<p>Hello World</p>"),
+											"editor_type": knownvalue.StringExact("block"),
+											"layout_id":   knownvalue.StringExact("updated-layout-id"),
+										}),
+									}),
+								}),
+							}),
+						),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue("novu_workflow.test", tfjsonpath.New("steps"),
+						knownvalue.ListPartial(map[int]knownvalue.Check{
+							0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+								"email_step": knownvalue.ObjectPartial(map[string]knownvalue.Check{
+									"control_values": knownvalue.ObjectExact(map[string]knownvalue.Check{
+										"subject":     knownvalue.StringExact("test subject"),
+										"body":        knownvalue.StringExact("<p>Hello World</p>"),
+										"editor_type": knownvalue.StringExact("block"),
+										"layout_id":   knownvalue.StringExact("updated-layout-id"),
+									}),
+								}),
+							}),
+						}),
+					),
+				},
+			},
+			{
+				// same config, expect no changes
+				Config: testAccWorkflowWithEmailStepLayoutIDConfig(workflow_id, rname, "updated-layout-id"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
 func testAccWorkflowWithMixedStepsConfig(workflow_id string, name string) string {
 	return fmt.Sprintf(`
 resource "novu_workflow" "test" {
@@ -491,4 +592,25 @@ resource "novu_workflow" "test" {
   ]
 }
 `, workflow_id, name)
+}
+
+func testAccWorkflowWithEmailStepLayoutIDConfig(workflow_id string, name string, layoutID string) string {
+	return fmt.Sprintf(`
+resource "novu_workflow" "test" {
+  workflow_id = "%s"
+  name = "%s"
+  steps = [
+    {
+      email_step = {
+        name = "test email step"
+        control_values = {
+          subject   = "test subject"
+          body      = "<p>Hello World</p>"
+          layout_id = "%s"
+        }
+      }
+    }
+  ]
+}
+`, workflow_id, name, layoutID)
 }

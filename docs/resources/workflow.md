@@ -122,6 +122,7 @@ Optional:
 
 - `body` (String) Body content of the email (HTML string or Maily JSON).
 - `editor_type` (String) Type of editor used for the body. Allowed values: `block`, `html`. Defaults to `block`.
+- `layout_id` (String) Layout ID to use for the email. Omit for the default layout, set to an explicit ID to use a specific layout.
 
 
 <a id="nestedatt--steps--email_step--issues"></a>
