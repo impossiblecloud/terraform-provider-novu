@@ -130,6 +130,7 @@ type WorkflowEmailControlValuesResourceModel struct {
 	Subject    types.String `tfsdk:"subject"`
 	Body       types.String `tfsdk:"body"`
 	EditorType types.String `tfsdk:"editor_type"`
+	LayoutID   types.String `tfsdk:"layout_id"`
 }
 
 func NewWorkflowResource() resource.Resource {
@@ -460,6 +461,10 @@ func (r *WorkflowResource) Schema(ctx context.Context, req resource.SchemaReques
 											Optional:            true,
 											Computed:            true,
 											Default:             stringdefault.StaticString("block"),
+										},
+										"layout_id": schema.StringAttribute{
+											MarkdownDescription: "Layout ID to use for the email. Omit for the default layout, set to an explicit ID to use a specific layout.",
+											Optional:            true,
 										},
 									},
 								},
@@ -886,8 +891,9 @@ func (w *WorkflowStepResourceModel) convertToNovuStep() (*components.Steps, erro
 		if emailStep.ControlValues != nil {
 			cv := emailStep.ControlValues
 			emailControlDto := components.EmailControlDto{
-				Subject: cv.Subject.ValueString(),
-				Body:    helpers.FromTfString(cv.Body),
+				Subject:  cv.Subject.ValueString(),
+				Body:     helpers.FromTfString(cv.Body),
+				LayoutID: helpers.FromTfString(cv.LayoutID),
 			}
 			if !cv.EditorType.IsNull() && !cv.EditorType.IsUnknown() && cv.EditorType.ValueString() != "" {
 				editorType := components.EmailControlDtoEditorType(cv.EditorType.ValueString())
@@ -997,7 +1003,7 @@ func (cv *WorkflowEmailControlValuesResourceModel) sameAs(other *WorkflowEmailCo
 	if cv == nil || other == nil {
 		return false
 	}
-	return cv.Subject.Equal(other.Subject) && cv.Body.Equal(other.Body) && cv.EditorType.Equal(other.EditorType)
+	return cv.Subject.Equal(other.Subject) && cv.Body.Equal(other.Body) && cv.EditorType.Equal(other.EditorType) && cv.LayoutID.Equal(other.LayoutID)
 }
 
 func buildStepsList(ctx context.Context, workflow *components.WorkflowResponseDto) ([]WorkflowStepResourceModel, error) {
@@ -1091,8 +1097,9 @@ func readEmailStepAsModel(ctx context.Context, step *components.WorkflowResponse
 
 	if cv := emailStep.ControlValues; cv != nil {
 		emailStepModel.ControlValues = &WorkflowEmailControlValuesResourceModel{
-			Subject: types.StringValue(cv.Subject),
-			Body:    helpers.TfString(cv.Body),
+			Subject:  types.StringValue(cv.Subject),
+			Body:     helpers.TfString(cv.Body),
+			LayoutID: helpers.TfString(cv.LayoutID),
 		}
 		if cv.EditorType != nil {
 			emailStepModel.ControlValues.EditorType = types.StringValue(string(*cv.EditorType))
