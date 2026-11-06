@@ -9,6 +9,7 @@ This provider is built using the [Terraform Plugin Framework](https://github.com
 ## Features
 
 - **Workflow Management**: Create and manage notification workflows with support for push notifications and emails
+- **Layout Management**: Create and manage email layouts.
 - **Integration Management**: Configure notification provider integrations (currently supports FCM only)
 - **Environment & API Key Discovery**: Query Novu environments and API keys
 - **Provider Validation**: Verify provider type existence (through the Novu Go SDK)
