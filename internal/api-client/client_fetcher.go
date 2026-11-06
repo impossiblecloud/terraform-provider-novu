@@ -122,8 +122,8 @@ func ResponseError(res *ApiClientResponse) error {
 		if apiClientResponseError.Message != nil {
 			errorArr = append(errorArr, fmt.Errorf("response error: %s", *apiClientResponseError.Message))
 		}
-		for _, error := range apiClientResponseError.Errors {
-			for _, message := range error.Messages {
+		for _, e := range apiClientResponseError.Errors {
+			for _, message := range e.Messages {
 				errorArr = append(errorArr, errors.New(message))
 			}
 		}
