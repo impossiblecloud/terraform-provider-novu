@@ -17,7 +17,6 @@ func TestApiKeysDataSource(t *testing.T) {
 				}
 				`,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("data.novu_api_keys.test", "items.#", "2"),
 					resource.TestCheckResourceAttrSet("data.novu_api_keys.test", "items.0.environment_id"),
 					resource.TestCheckResourceAttrSet("data.novu_api_keys.test", "items.0.value"),
 					resource.TestCheckResourceAttrSet("data.novu_api_keys.test", "items.0.hash"),
@@ -33,8 +32,7 @@ func TestApiKeysDataSource(t *testing.T) {
 			{
 				Config: testApiKeysConfigWithEnvironmentConfig,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("data.novu_api_keys.test", "items.#", "1"),
-					resource.TestCheckResourceAttrSet("data.novu_api_keys.test", "items.0.environment_id"),
+					resource.TestCheckResourceAttrPair("data.novu_api_keys.test", "items.0.environment_id", "data.novu_api_keys.all", "items.0.environment_id"),
 					resource.TestCheckResourceAttrSet("data.novu_api_keys.test", "items.0.value"),
 					resource.TestCheckResourceAttrSet("data.novu_api_keys.test", "items.0.hash"),
 				),
@@ -49,11 +47,11 @@ data "novu_api_keys" "test" {
 }
 `
 
+// The API key only sees the keys of its own environment, so filter on that one
 var testApiKeysConfigWithEnvironmentConfig = `
-data "novu_environment" "test" {
-	name = "Development"
+data "novu_api_keys" "all" {
 }
 data "novu_api_keys" "test" {
-	environment_id = data.novu_environment.test.id
+	environment_id = data.novu_api_keys.all.items[0].environment_id
 }
 `

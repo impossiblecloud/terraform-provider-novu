@@ -70,6 +70,7 @@ jobs:
       - run: go mod download
       - env:
           NOVU_API_KEY: ${{ secrets.NOVU_TEST_ORG_DEV_API_KEY }}
+          NOVU_EU_REGION: "true"
         run: make provider-testacc
         timeout-minutes: 10
 
@@ -103,5 +104,6 @@ jobs:
       - run: go mod download
       - env:
           NOVU_API_KEY: ${{ secrets.NOVU_TEST_ORG_DEV_API_KEY }}
+          NOVU_EU_REGION: "true"
         run: make provider-testacc-tofu
         timeout-minutes: 10

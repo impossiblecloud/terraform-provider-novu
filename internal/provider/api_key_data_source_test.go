@@ -15,12 +15,13 @@ func TestApiKeyDataSource(t *testing.T) {
 			{
 				Config: `
 				data "novu_api_key" "test" {
+					environment_id = "non-existing-id"
 				}
 				`,
-				ExpectError: regexp.MustCompile("Multiple api keys found"),
+				ExpectError: regexp.MustCompile("No api key found for environment non-existing-id"),
 			},
 			{
-				Config: testApiKeyConfigWithDevEnvConfig,
+				Config: testApiKeyConfigWithEnvironmentConfig,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("data.novu_api_key.test", "value"),
 					resource.TestCheckResourceAttrSet("data.novu_api_key.test", "owner_id"),
@@ -31,11 +32,11 @@ func TestApiKeyDataSource(t *testing.T) {
 	})
 }
 
-var testApiKeyConfigWithDevEnvConfig = `
-data "novu_environment" "test" {
-	name = "Development"
+// The API key only sees the keys of its own environment, so look up that one
+var testApiKeyConfigWithEnvironmentConfig = `
+data "novu_api_keys" "all" {
 }
 data "novu_api_key" "test" {
-	environment_id = data.novu_environment.test.id
+	environment_id = data.novu_api_keys.all.items[0].environment_id
 }
 `

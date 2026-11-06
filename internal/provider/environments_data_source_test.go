@@ -17,7 +17,9 @@ func TestEnvironmentsDataSource(t *testing.T) {
 				}
 				`,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("data.novu_environments.test", "items.#", "2")),
+					resource.TestCheckTypeSetElemNestedAttrs("data.novu_environments.test", "items.*", map[string]string{"name": "Development"}),
+					resource.TestCheckTypeSetElemNestedAttrs("data.novu_environments.test", "items.*", map[string]string{"name": "Production"}),
+				),
 			},
 		},
 	})
