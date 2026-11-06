@@ -18,15 +18,10 @@ func TestWorkflowsDataSourceBasic(t *testing.T) {
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccMinimalWorkflowsDataSourceConfig(),
+				// search before the workflow exists, the environment may already hold other workflows
+				Config: testAccWorkflowsDataSourceSearchConfig(rnumber),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue("data.novu_workflows.test", tfjsonpath.New("items"), knownvalue.ListSizeExact(0)),
-				},
-			},
-			{
-				Config: testAccFullWorkflowsDataSourceConfigWithAWorkflow(rnumber),
-				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue("data.novu_workflows.test", tfjsonpath.New("items"), knownvalue.ListSizeExact(1)),
 				},
 			},
 			{
@@ -45,11 +40,12 @@ func TestWorkflowsDataSourceBasic(t *testing.T) {
 	})
 }
 
-func testAccMinimalWorkflowsDataSourceConfig() string {
-	return `
+func testAccWorkflowsDataSourceSearchConfig(rnumber int) string {
+	return fmt.Sprintf(`
 data "novu_workflows" "test" {
+	search = "test-%d"
 }
-`
+`, rnumber)
 }
 
 func testAccGenerateWorkflowConfig(rnumber int) string {
@@ -59,15 +55,6 @@ resource "novu_workflow" "test" {
 	workflow_id = "test-%d"
 }
 `, rnumber, rnumber)
-}
-
-func testAccFullWorkflowsDataSourceConfigWithAWorkflow(rnumber int) string {
-	return fmt.Sprintf(`
-%s
-data "novu_workflows" "test" {
-	depends_on = [novu_workflow.test]
-}
-`, testAccGenerateWorkflowConfig(rnumber))
 }
 
 func testAccFullWorkflowsDataSourceValidSearchConfigWithAWorkflow(rnumber int) string {
